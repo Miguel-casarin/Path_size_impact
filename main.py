@@ -4,8 +4,8 @@ import json
 
 from scripts import readPaths, utils, editVerilog, readVerilog, edTCL, sta, readPaths, mountPhats
 
-CLEAR_TEMP_DIR =  False
-DESIGN = "c432"
+CLEAR_TEMP_DIR =  True
+DESIGN = "c1908"
 PRIORITY_FILE = f"./input/{DESIGN}_priority.txt"
 TCL_SCRIPT = "timing.tcl"
 TCL_STEPS = "timingSteps.tcl"
@@ -16,6 +16,8 @@ OUT_DIR = "./out"
 VERILOGS_DIR = "./verilogs"
 
 STEPS_EV = {}
+
+CUMULATIVE = True
 
 priority_list = utils.returns_cells_steps(PRIORITY_FILE)
 
@@ -67,10 +69,14 @@ STEPS_EV[0] = {
 
 step = 1
 for cel in priority_list:
-    if step == 1:
-        utils.copy_and_rename(f"{VERILOGS_DIR}/{DESIGN}.v", f"{TEMP_DIR}/{step}{DESIGN}.v")
+
+    if CUMULATIVE:
+        if step == 1:
+            utils.copy_and_rename(f"{VERILOGS_DIR}/{DESIGN}.v", f"{TEMP_DIR}/{step}{DESIGN}.v")
+        else:
+            utils.copy_and_rename(f"{TEMP_DIR}/{step - 1}{DESIGN}.v", f"{TEMP_DIR}/{step}{DESIGN}.v")
     else:
-        utils.copy_and_rename(f"{TEMP_DIR}/{step - 1}{DESIGN}.v", f"{TEMP_DIR}/{step}{DESIGN}.v")
+        utils.copy_and_rename(f"{VERILOGS_DIR}/{DESIGN}.v", f"{TEMP_DIR}/{step}{DESIGN}.v")
 
     editVerilog.edit_verilog(f"{TEMP_DIR}/{step}{DESIGN}.v", cel)
 
@@ -107,6 +113,10 @@ if CLEAR_TEMP_DIR:
     utils.clear_dir(TEMP_DIR)
 
 #utils.dict_to_json(STEPS_EV, f"{OUT_DIR}/{DESIGN}.json")
-mountPhats.write_paths_txt(STEPS_EV, f"{OUT_DIR}/{DESIGN}.txt")
+if CUMULATIVE:
+    mountPhats.write_paths_txt(STEPS_EV, f"{OUT_DIR}/{DESIGN}_cumulativo.txt")
+
+else:
+    mountPhats.write_paths_txt(STEPS_EV, f"{OUT_DIR}/single_{DESIGN}.txt")
 
 pprint.pprint(STEPS_EV)
