@@ -1,17 +1,8 @@
-#!/usr/bin/env python3
-"""
-Converte um netlist Verilog estrutural (ex.: saída do Yosys) em um grafo .dot.
-
-Coloque a variável `verilog` com o nome do circuito (sem extensão):
-    verilog = "c17"   -> lê c17.v e salva dot/c17.dot
-
-Como visualizar:
-    dot -Tpng dot/c17.dot -o dot/c17.png
-"""
 import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+import subprocess
 
 # Nomes de pinos considerados SAÍDA nas células (padrão Nangate/FreePDK45).
 # Adicione outros se a sua biblioteca usar nomes diferentes.
@@ -69,12 +60,23 @@ def _pin_order(pins):
 
 
 def verilog_to_dot(verilog, out_dir="dot"):
-    """Lê f"{verilog}.v" e salva f"{out_dir}/{verilog}.dot". Retorna o caminho do .dot."""
-    verilog_path = Path(f"{verilog}.v")
-    Path(out_dir).mkdir(parents=True, exist_ok=True)  # cria dot/ se não existir
-    dot_path = Path(out_dir) / f"{verilog}.dot"
+    """Lê o arquivo Verilog e salva f"{out_dir}/{design_name}.dot". Retorna o caminho do .dot."""
+    verilog_p = Path(verilog)
+    if verilog_p.is_file():
+        verilog_path = verilog_p
+        design_name = verilog_path.stem
+    else:
+        name = str(verilog).strip().removesuffix(".v")
+        verilog_path = Path("verilogs") / f"{name}.v"
+        design_name = name
 
-    module, inputs, outputs, cells = parse_verilog(verilog_path.read_text())
+    if not verilog_path.exists():
+        raise FileNotFoundError(f"Arquivo Verilog não encontrado: {verilog_path}")
+
+    Path(out_dir).mkdir(parents=True, exist_ok=True)  # cria dot/ se não existir
+    dot_path = Path(out_dir) / f"{design_name}.dot"
+
+    module, inputs, outputs, cells = parse_verilog(verilog_path.read_text(encoding="utf-8"))
 
     # net -> origem ("port:NOME" ou (célula, pino)) e destinos
     drivers = {}
@@ -106,7 +108,8 @@ def verilog_to_dot(verilog, out_dir="dot"):
     # Células (records com entradas à esquerda, saídas à direita)
     for c in cells:
         ins, outs = _pin_order(c["pins"])
-        in_fields = "|".join(f"<{p}> {p}" for p in ins)
+        # entradas mostram o fio conectado; saídas mostram o nome do pino (ZN)
+        in_fields = "|".join(f"<{p}> {c['pins'][p]}" for p in ins)
         out_fields = "|".join(f"<{p}> {p}" for p in outs)
         label = (f"{{{{{in_fields}}}|{c['name']}\\n{c['type']}|"
                  f"{{{out_fields}}}}}")
@@ -135,10 +138,15 @@ def verilog_to_dot(verilog, out_dir="dot"):
             lines.append(f"{src} -> {port_id[net]}:w [{style}];")
 
     lines.append("}")
-    dot_path.write_text("\n".join(lines) + "\n")
+    dot_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return dot_path
 
 
-verilog = input("entre com o nome do design (sem .v):")
-
-verilog_to_dot(verilog)
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        verilog = sys.argv[1]
+    else:
+        verilog = input("entre com o nome do design (sem .v): ").strip()
+    dot_file = verilog_to_dot(verilog)
+    print(f"Arquivo DOT gerado com sucesso em: {dot_file}")
+    subprocess.run(["xdot", str(dot_file)])
