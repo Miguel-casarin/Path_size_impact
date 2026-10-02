@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from plots import read, graf_circuit
+from scripts import utils
 
 import re
 import difflib
@@ -56,7 +57,7 @@ class Viewer(tk.Tk):
     def __init__(self, search_obj, steps, circuit, dot_file):
         super().__init__()
         self.title("Viewer")
-        self.geometry("500x400")
+        self.geometry("700x600")
         self.search_obj = search_obj
         self.steps = steps
         self.circuit = circuit
@@ -93,19 +94,25 @@ class Viewer(tk.Tk):
         right.grid(row=0, column=1, sticky="n")
 
         # Label para indicar se houve mudança
-        self.status_var = tk.StringVar(value="Selecione um step")
+        self.status_var = tk.StringVar(value="Select a step")
         ttk.Label(right, textvariable=self.status_var).pack(pady=(0, 10))
 
         # Botão para mostrar as diferenças
-        self.btn_show_dif = ttk.Button(right, text="Mostrar Diferenças", command=self.open_dif_window)
+        self.btn_show_dif = ttk.Button(right, text="Show Differences", command=self.open_dif_window)
         self.btn_show_dif.pack(pady=(0, 10))
 
         # Botão para listar todos os steps com mudanças
-        self.btn_all_changes = ttk.Button(right, text="Resumo de Mudanças", command=self.open_all_changes_window)
+        self.btn_all_changes = ttk.Button(right, text="Summary of Changes", command=self.open_all_changes_window)
         self.btn_all_changes.pack(pady=(0, 10))
 
         self.btn_view_paths = ttk.Button(right, text="View Paths", command=self.view_paths)
-        self.btn_view_paths.pack()
+        self.btn_view_paths.pack(pady=(0, 10))
+
+        self.btn_path_on_circuit = ttk.Button(right, text="Path on Circuit", command=self.path_on_circuit)
+        self.btn_path_on_circuit.pack(pady=(0, 10))
+
+        self.btn_return_step = ttk.Button(right, text="View Step Content", command=self.open_step_window)
+        self.btn_return_step.pack(pady=(0, 10))
 
         self.current_dif = {}
 
@@ -118,7 +125,7 @@ class Viewer(tk.Tk):
         step = self.steps[step_idx]
         
         if step_idx == 0:
-            self.status_var.set(f"Step {step} (Base) - Sem anterior")
+            self.status_var.set(f"Step {step} (Base) - No previous step")
             self.current_dif = {}
             return
 
@@ -131,13 +138,13 @@ class Viewer(tk.Tk):
         self.current_dif = show_dif(prev_data, curr_data)
         
         if check_if_dif(self.current_dif):
-            self.status_var.set(f"Step {step}: Houve mudança!")
+            self.status_var.set(f"Step {step}: Changed")
         else:
-            self.status_var.set(f"Step {step}: Sem mudança.")
+            self.status_var.set(f"Step {step}: No change")
 
     def open_dif_window(self):
         dif_win = tk.Toplevel(self)
-        dif_win.title("Diferenças Encontradas")
+        dif_win.title("Differences Found")
         dif_win.geometry("600x400")
         
         text = tk.Text(dif_win, wrap=tk.WORD, padx=10, pady=10)
@@ -146,7 +153,7 @@ class Viewer(tk.Tk):
         text.tag_config("red", foreground="red")
         
         if not self.current_dif:
-            text.insert(tk.END, "Nenhuma rota apresentou diferença de string neste step com relação ao step anterior.\n")
+            text.insert(tk.END, "No route differences found in this step compared to the previous step.\n")
         else:
             for arr_key, changes in self.current_dif.items():
                 text.insert(tk.END, f"{arr_key}:\n")
@@ -154,19 +161,23 @@ class Viewer(tk.Tk):
                 curr_path = changes["curr"]
                 
                 if prev_path:
-                    text.insert(tk.END, f"  Anterior: {prev_path}\n")
+                    text.insert(tk.END, f"  Previous: {prev_path}\n")
                 else:
-                    text.insert(tk.END, f"  Anterior: (Não existia)\n")
+                    text.insert(tk.END, f"  Previous: (Did not exist)\n")
                     
                 if curr_path:
-                    text.insert(tk.END, f"  Atual:    ")
+                    text.insert(tk.END, f"  Current:  ")
                     if not prev_path:
                         text.insert(tk.END, f"{curr_path}\n", "red")
                     else:
                         prev_nodes = [n.strip() for n in prev_path.split("->")]
                         curr_nodes = [n.strip() for n in curr_path.split("->")]
+
+                        # compara apenas o nome do gate, ignorando a transição (^ ou v)
+                        prev_gates = [re.sub(r'[v^]$', '', n) for n in prev_nodes]
+                        curr_gates = [re.sub(r'[v^]$', '', n) for n in curr_nodes]
                         
-                        matcher = difflib.SequenceMatcher(None, prev_nodes, curr_nodes)
+                        matcher = difflib.SequenceMatcher(None, prev_gates, curr_gates)
                         
                         nodes_with_color = []
                         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
@@ -187,20 +198,20 @@ class Viewer(tk.Tk):
                                 text.insert(tk.END, " -> ")
                         text.insert(tk.END, "\n")
                 else:
-                    text.insert(tk.END, f"  Atual:    (Removido)\n")
+                    text.insert(tk.END, f"  Current:  (Removed)\n")
                 text.insert(tk.END, "\n")
             
         text.config(state=tk.DISABLED)  # Somente leitura
 
     def open_all_changes_window(self):
         win = tk.Toplevel(self)
-        win.title("Steps com Mudanças")
+        win.title("Steps with Changes")
         win.geometry("250x300")
         
         text = tk.Text(win, wrap=tk.WORD, padx=10, pady=10)
         text.pack(expand=True, fill=tk.BOTH)
         
-        text.insert(tk.END, "Calculando...\n")
+        text.insert(tk.END, "Calculating...\n")
         win.update()
         
         changed = steps_changes(self.search_obj, self.steps)
@@ -208,24 +219,56 @@ class Viewer(tk.Tk):
         text.config(state=tk.NORMAL)
         text.delete(1.0, tk.END)
         if not changed:
-            text.insert(tk.END, "Nenhum step apresentou mudança.\n")
+            text.insert(tk.END, "No step showed any changes.\n")
         else:
             for s in changed:
                 text.insert(tk.END, f"Step {s}\n")
                 
         text.config(state=tk.DISABLED)
 
+    def open_step_window(self):
+        selection = self.listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a step first.")
+            return
+
+        step_idx = selection[0]
+        step = self.steps[step_idx]
+
+        try:
+            content = self.search_obj.return_step(step)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error retrieving step data: {e}")
+            return
+
+        win = tk.Toplevel(self)
+        win.title(f"Step {step} Details")
+        win.geometry("500x400")
+
+        frame = ttk.Frame(win, padding=10)
+        frame.pack(expand=True, fill=tk.BOTH)
+
+        scrollbar = ttk.Scrollbar(frame, orient="vertical")
+        text = tk.Text(frame, wrap=tk.WORD, yscrollcommand=scrollbar.set)
+        scrollbar.config(command=text.yview)
+
+        text.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        text.insert(tk.END, content)
+        text.config(state=tk.DISABLED)
+
     def view_paths(self):
         selection = self.listbox.curselection()
         if not selection:
-            messagebox.showwarning("Aviso", "Selecione um step primeiro.")
+            messagebox.showwarning("Warning", "Please select a step first.")
             return
 
         step_idx = selection[0]
         step = self.steps[step_idx]
 
         if not self.current_dif:
-            messagebox.showinfo("Aviso", "Sem mudanças neste step para gerar grafo.")
+            messagebox.showinfo("Notice", "No changes in this step to generate graph.")
             return
 
         # Coletar TODOS os gates da rota atual para as rotas que sofreram mudança
@@ -241,7 +284,7 @@ class Viewer(tk.Tk):
                     gates_to_plot.add(clean_n)
 
         if not gates_to_plot:
-            messagebox.showinfo("Aviso", "Nenhum gate encontrado na rota para gerar grafo.")
+            messagebox.showinfo("Notice", "No gates found in route to generate graph.")
             return
 
         # Chama paths.py para gerar o arquivo
@@ -259,10 +302,96 @@ class Viewer(tk.Tk):
             # Rodar xdot em uma thread para não travar a UI
             threading.Thread(target=plot_graf, args=("", out_dot), daemon=True).start()
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao gerar grafo: {e}")
+            messagebox.showerror("Error", f"Error generating graph: {e}")
 
+    def path_on_circuit(self):
+        selection = self.listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a step first.")
+            return
+
+        step_idx = selection[0]
+        step = self.steps[step_idx]
+
+        paths_dict = self.search_obj.arrivals_by_step(step)
+        if not paths_dict:
+            messagebox.showinfo("Notice", "No arrivals found for this step.")
+            return
+
+        import os
+        import threading
+        from plots.xdot import plot_graf
+
+        try:
+            out_dot = self.viewer_path_circuit(self.circuit, step, paths_dict)
+            threading.Thread(target=plot_graf, args=("", out_dot), daemon=True).start()
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generating circuit with paths: {e}")
+
+    # retorna o circuito inteiro com o path do step marcado
+    def viewer_path_circuit(self, design: str, step: int, paths_dict: dict) -> str:
+        import os
+        os.makedirs("temp", exist_ok=True)
+        out_dot = f"./temp/{step}_{design}.dot"
+        utils.copy_and_rename(f"./dot/{design}.dot", out_dot)
+
+        with open(out_dot, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        EDGE_RE = re.compile(r"^\s*(\S+)\s*->\s*(\S+)\s*\[(.*)\]\s*;\s*$")
+        NODE_RE = re.compile(r"^\s*(\w+)\s*\[(.*)\]\s*;\s*$")
+        GATE_NAME_RE = re.compile(r"\}\|([^|]*?)\\n")
+        LABEL_RE = re.compile(r'label="([^"]+)"')
+
+        gate_to_node = {}
+        for line in lines:
+            node = NODE_RE.match(line)
+            if node:
+                node_id = node.group(1)
+                gate = GATE_NAME_RE.search(node.group(2))
+                if gate:
+                    gate_to_node[gate.group(1).strip()] = node_id
+                else:
+                    lbl = LABEL_RE.search(node.group(2))
+                    if lbl:
+                        gate_to_node[lbl.group(1).strip()] = node_id
+
+        pairs_to_color = set()
+        for path_str in paths_dict.values():
+            if not path_str:
+                continue
+            raw_nodes = [n.strip() for n in path_str.split("->")]
+            clean_nodes = [re.sub(r'[v^]$', '', n) for n in raw_nodes if n]
+            for i in range(len(clean_nodes) - 1):
+                u_name = clean_nodes[i]
+                v_name = clean_nodes[i + 1]
+                u_id = gate_to_node.get(u_name)
+                v_id = gate_to_node.get(v_name)
+                if u_id and v_id:
+                    pairs_to_color.add((u_id, v_id))
+
+        new_lines = []
+        for line in lines:
+            edge = EDGE_RE.match(line)
+            if edge:
+                src = edge.group(1).split(":")[0]
+                tgt = edge.group(2).split(":")[0]
+                if (src, tgt) in pairs_to_color:
+                    line_mod, count = re.subn(r'(?<!font)color="[^"]*"', 'color="red"', line)
+                    if count == 0:
+                        line_mod = line.replace("[", '[color="red", ', 1)
+                    new_lines.append(line_mod)
+                    continue
+            new_lines.append(line)
+
+        with open(out_dot, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+
+        return out_dot
+
+        
 if __name__ == "__main__":
-    circuit = input("set design: ")
+    circuit = input("Set design: ")
 
     dot_file = f"./dot/{circuit}.dot"
     steps_file = f"./out/{circuit}_cumulativo.txt"
@@ -273,9 +402,9 @@ if __name__ == "__main__":
     try:
         steps_list = search_obj.count_steps()
         if not steps_list:
-            print("Nenhum step encontrado no arquivo.")
+            print("No steps found in the file.")
         else:
             app = Viewer(search_obj, steps_list, circuit, dot_file)
             app.mainloop()
     except FileNotFoundError:
-        print(f"Arquivo não encontrado: {steps_file}")
+        print(f"File not found: {steps_file}")

@@ -50,8 +50,21 @@ class Search_steps:
 
     def previos_arrivals(self, step: int) -> dict:
         if step != 0:
-            arrivals = self.arrivals_by_step(self, step - 1)
+            arrivals = self.arrivals_by_step(step - 1)
         else:
             print("step igual a zero")
+            arrivals = {}
 
         return arrivals
+
+    def return_step(self, step: int) -> str:
+        with open(self.steps_file, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        pattern = rf"^STEP {step}\n.*?(?=^STEP \d+\n|\Z)"
+        match = re.search(pattern, text, flags=re.MULTILINE | re.DOTALL)
+        if match is None:
+            raise ValueError(f"STEP {step} não encontrado em {self.steps_file}")
+
+        return match.group(0).rstrip("\n")
+        
