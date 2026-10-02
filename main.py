@@ -4,8 +4,8 @@ import json
 
 from scripts import readPaths, utils, editVerilog, readVerilog, edTCL, sta, readPaths, mountPhats
 
-CLEAR_TEMP_DIR =  True
-DESIGN = "c1908"
+CLEAR_TEMP_DIR =  False
+DESIGN = "b09_C"
 PRIORITY_FILE = f"./input/{DESIGN}_priority.txt"
 TCL_SCRIPT = "timing.tcl"
 TCL_STEPS = "timingSteps.tcl"
