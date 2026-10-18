@@ -112,7 +112,7 @@ for cel in priority_list:
 if CLEAR_TEMP_DIR:
     utils.clear_dir(TEMP_DIR)
 
-#utils.dict_to_json(STEPS_EV, f"{OUT_DIR}/{DESIGN}.json")
+utils.dict_to_json(STEPS_EV, f"{OUT_DIR}/{DESIGN}.json")
 if CUMULATIVE:
     mountPhats.write_paths_txt(STEPS_EV, f"{OUT_DIR}/{DESIGN}_cumulativo.txt")
 
