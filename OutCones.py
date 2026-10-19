@@ -2,7 +2,7 @@ from cones import statiscs
 
 cones_json = "./jsonCones"
 out_path = "./out"
-design = "c432"
+design = "c7552"
 
 c = statiscs.Cones_analysis(f"{cones_json}/{design}.json")
 
