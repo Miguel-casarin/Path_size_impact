@@ -4,7 +4,7 @@ from cones import pathCones
 import pprint
 import json
 
-circuit = "c432"
+circuit = "c1355"
 design = f"./verilogs/{circuit}.v"
 lib = "./library/Nangate45_typ.lib"
 
